@@ -1,120 +1,260 @@
 <!doctype html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <title>SDG15 Crop Growth Simulator</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  
-  <!-- ✨ FIX: Load Leaflet's CSS BEFORE your custom styles to prevent conflicts -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-     crossorigin=""/>
-  <link rel="stylesheet" href="/style.css" />
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>TerraLearn - SDG15 Crop Growth Simulator</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.min.js"></script>
-</head>
-<body>
-  <header>
-    <h1>🌱 SDG15 Crop Growth Simulator</h1>
-    <p class="muted">NASA POWER + SoilGrids • 120-day interactive growth animation</p>
-  </header>
+    <!-- Load Leaflet's CSS BEFORE your custom styles to prevent conflicts -->
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
+    />
+    <link rel="stylesheet" href="/style.css" />
 
-  <main>
-    <section class="card">
-      <div class="grid g3">
-        <label>Latitude
-          <input id="lat" type="number" step="0.00001" value="12.92290" />
-        </label>
-        <label>Longitude
-          <input id="lon" type="number" step="0.00001" value="77.48660" />
-        </label>
-        <label>Crop
-          <input id="crop" type="text" value="tomato" placeholder="e.g., wheat, potato..." />
-        </label>
-      </div>
-      
-      <div class="row">
-        <button id="geo" class="btn ghost">Use my location</button>
-        <button id="open-map" class="btn ghost">Select from map</button>
-        <button id="run" class="btn">Run simulation</button>
-        <span id="status" class="muted"></span>
-      </div>
-    </section>
-
-    <section class="card">
-      <h2>Climate & Soil</h2>
-      <div class="grid g5">
-        <div class="kpi"><div class="k">Temp (°C)</div><div id="kTemp" class="v">—</div></div>
-        <div class="kpi"><div class="k">Annual Rain (mm)</div><div id="kRain" class="v">—</div></div>
-        <div class="kpi"><div class="k">Solar (MJ/m²/d)</div><div id="kSolar" class="v">—</div></div>
-        <div class="kpi"><div class="k">RH (%)</div><div id="kRH" class="v">—</div></div>
-        <div class="kpi"><div class="k">Wind (m/s)</div><div id="kWind" class="v">—</div></div>
-      </div>
-
-      <div class="grid g4">
-        <div class="kpi"><div class="k">Soil pH</div><div id="kPh" class="v">—</div></div>
-        <div class="kpi"><div class="k">Clay %</div><div id="kClay" class="v">—</div></div>
-        <div class="kpi"><div class="k">Silt %</div><div id="kSilt" class="v">—</div></div>
-        <div class="kpi"><div class="k">Sand %</div><div id="kSand" class="v">—</div></div>
-      </div>
-
-      <div class="muted small">
-        <span>POWER: <a id="srcPower" target="_blank">link</a></span>
-        <span style="margin-left:10px">SoilGrids: <a id="srcSoil" target="_blank">link</a></span>
-      </div>
-    </section>
-
-    <section class="card">
-      <div class="row">
-        <span id="badge" class="badge">—</span>
-        <div class="score">Score: <span id="score">—</span>/100</div>
-      </div>
-      <div class="bar"><span id="bar"></span></div>
-
-      <div class="grid g4 fits">
-        <div><div class="k">Temp fit</div><div id="fTemp">—</div></div>
-        <div><div class="k">Rain fit</div><div id="fRain">—</div></div>
-        <div><div class="k">Solar fit</div><div id="fSolar">—</div></div>
-        <div><div class="k">Soil fit</div><div id="fSoil">—</div></div>
-      </div>
-
-      <div class="row small" id="limitsBox" style="display:none">
-        <div><b>Limiting factors:</b> <span id="limits"></span></div>
-      </div>
-    </section>
-
-    <section class="card">
-      <h2>Growth animation</h2>
-      <div class="row">
-        <button id="play" class="btn">▶ Play</button>
-        <button id="pause" class="btn ghost">⏸ Pause</button>
-        <div class="muted">Day <span id="day">—</span>/120 • Stage: <span id="stage">—</span></div>
-      </div>
-      <div id="field">
-        <div id="canvas-container"></div>
-      </div>
-    </section>
-  </main>
-
-  <!-- HTML for the map modal -->
-  <div id="map-modal" class="modal-overlay">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h2>Select Location</h2>
-        <button id="close-map" class="close-btn">&times;</button>
-      </div>
-      <div id="map"></div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.min.js"></script>
+    <script src="https://api.tempo.build/proxy-asset?url=https://storage.googleapis.com/tempo-public-assets/error-handling.js"></script>
+  </head>
+  <body>
+    <!-- Navbar -->
+    <div class="navbar">
+      <button id="dashboard-btn">Dashboard</button>
+      <div class="icon"></div>
     </div>
-  </div>
 
-  <footer>
-    Built for SDG 15 • Add irrigation/fertilizer sliders later for classroom experiments.
-  </footer>
+    <!-- Hero Section -->
+    <section class="hero reveal">
+      <h1>Terra<span>Learn</span></h1>
+      <p>
+        Every child holds the power to shape the future. TerraLearn turns that
+        power into action, by teaching sustainability through play, curiosity,
+        and real-world impact.
+      </p>
+    </section>
 
-  <!-- Load Leaflet JS before your app's script -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-     crossorigin=""></script>
-  <script src="/app.js"></script>
-</body>
+    <!-- Main Application Section -->
+    <section class="app-section reveal">
+      <div class="app-container">
+        <div class="input-card card reveal">
+          <h2>🌱 Crop Growth Simulator</h2>
+          <p class="subtitle">
+            NASA POWER + SoilGrids • 120-day interactive growth animation
+          </p>
+
+          <div class="grid g3">
+            <label
+              >Latitude
+              <input id="lat" type="number" step="0.00001" value="12.92290" />
+            </label>
+            <label
+              >Longitude
+              <input id="lon" type="number" step="0.00001" value="77.48660" />
+            </label>
+            <label
+              >Crop
+              <input
+                id="crop"
+                type="text"
+                value="tomato"
+                placeholder="e.g., wheat, potato..."
+              />
+            </label>
+          </div>
+
+          <div class="primary-actions">
+            <button id="run" class="btn">Run Simulation</button>
+            <span id="status" class="muted"></span>
+          </div>
+
+          <div class="secondary-actions">
+            <button id="geo" class="btn ghost">📍 Use My Location</button>
+            <button id="open-map" class="btn ghost">🗺️ Select from Map</button>
+          </div>
+        </div>
+
+        <div class="results-grid">
+          <div class="climate-card card reveal">
+            <h2>Climate & Soil Data</h2>
+            <div class="grid g5">
+              <div class="kpi">
+                <div class="k">Temp (°C)</div>
+                <div id="kTemp" class="v">—</div>
+              </div>
+              <div class="kpi">
+                <div class="k">Annual Rain (mm)</div>
+                <div id="kRain" class="v">—</div>
+              </div>
+              <div class="kpi">
+                <div class="k">Solar (MJ/m²/d)</div>
+                <div id="kSolar" class="v">—</div>
+              </div>
+              <div class="kpi">
+                <div class="k">RH (%)</div>
+                <div id="kRH" class="v">—</div>
+              </div>
+              <div class="kpi">
+                <div class="k">Wind (m/s)</div>
+                <div id="kWind" class="v">—</div>
+              </div>
+            </div>
+
+            <div class="grid g4">
+              <div class="kpi">
+                <div class="k">Soil pH</div>
+                <div id="kPh" class="v">—</div>
+              </div>
+              <div class="kpi">
+                <div class="k">Clay %</div>
+                <div id="kClay" class="v">—</div>
+              </div>
+              <div class="kpi">
+                <div class="k">Silt %</div>
+                <div id="kSilt" class="v">—</div>
+              </div>
+              <div class="kpi">
+                <div class="k">Sand %</div>
+                <div id="kSand" class="v">—</div>
+              </div>
+            </div>
+
+            <div class="muted small">
+              <span>POWER: <a id="srcPower" target="_blank">link</a></span>
+              <span style="margin-left: 10px"
+                >SoilGrids: <a id="srcSoil" target="_blank">link</a></span
+              >
+            </div>
+          </div>
+
+          <div class="score-card card reveal">
+            <div class="row">
+              <span id="badge" class="badge">—</span>
+              <div class="score">Score: <span id="score">—</span>/100</div>
+            </div>
+            <div class="bar"><span id="bar"></span></div>
+
+            <div class="grid g4 fits">
+              <div>
+                <div class="k">Temp fit</div>
+                <div id="fTemp">—</div>
+              </div>
+              <div>
+                <div class="k">Rain fit</div>
+                <div id="fRain">—</div>
+              </div>
+              <div>
+                <div class="k">Solar fit</div>
+                <div id="fSolar">—</div>
+              </div>
+              <div>
+                <div class="k">Soil fit</div>
+                <div id="fSoil">—</div>
+              </div>
+            </div>
+
+            <div class="row small" id="limitsBox" style="display: none">
+              <div><b>Limiting factors:</b> <span id="limits"></span></div>
+            </div>
+          </div>
+
+          <div class="animation-card card reveal">
+            <h2>Growth Animation</h2>
+            <div class="row">
+              <div class="button-group">
+                <button id="play" class="btn">▶ Play</button>
+                <button id="pause" class="btn ghost">⏸ Pause</button>
+              </div>
+              <div class="muted" style="margin-left: auto">
+                Day <span id="day">—</span>/120 • Stage:
+                <span id="stage">—</span>
+              </div>
+            </div>
+            <div id="field">
+              <div id="canvas-container"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Benefits Section -->
+    <section class="benefits-section">
+      <div class="cards">
+        <div class="card reveal">
+          <h2>Town-wise Benefits</h2>
+          <ul>
+            <li>
+              Smart urban planning that preserves green spaces and biodiversity
+              corridors
+            </li>
+            <li>
+              Real-time monitoring of local air quality and ecosystem health
+            </li>
+            <li>
+              Community-driven conservation projects backed by local data
+              insights
+            </li>
+            <li>
+              Enhanced disaster preparedness through environmental risk mapping
+            </li>
+          </ul>
+        </div>
+        <div class="card world reveal">
+          <h2>World-wise Benefits</h2>
+          <ul>
+            <li>
+              Global forest monitoring preventing deforestation at unprecedented
+              scale
+            </li>
+            <li>
+              Species migration tracking that informs international conservation
+              policies
+            </li>
+            <li>
+              Climate change adaptation strategies powered by ecosystem data
+            </li>
+            <li>
+              Cross-border collaboration on biodiversity protection initiatives
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="highlight reveal">
+        <h2>💡 Data: The Compass for Our Planet's Future</h2>
+        <p>
+          When we harness the power of data, we transform from passive observers
+          to active guardians of our planet. Every data point collected today
+          becomes tomorrow's solution for thriving ecosystems, resilient
+          communities, and a sustainable world where life on land flourishes for
+          generations to come.
+        </p>
+      </div>
+    </section>
+
+    <!-- HTML for the map modal -->
+    <div id="map-modal" class="modal-overlay">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>Select Location</h2>
+          <button id="close-map" class="close-btn">&times;</button>
+        </div>
+        <div id="map"></div>
+      </div>
+    </div>
+
+    <footer>
+      Built for SDG 15 • Add irrigation/fertilizer sliders later for classroom
+      experiments.
+    </footer>
+
+    <!-- Load Leaflet JS before your app's script -->
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
+    <script src="/app.js"></script>
+  </body>
 </html>

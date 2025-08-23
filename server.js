@@ -3,6 +3,7 @@ import express from "express";
 import fetch from "node-fetch";
 import dotenv from "dotenv";
 import cors from "cors";
+import path from "path";
 dotenv.config();
 
 const app = express();
@@ -36,6 +37,15 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static("public"));
 
+// Tempo storyboard routes
+app.get("/tempobook/storyboards/:id", (req, res) => {
+  res.sendFile(path.join(process.cwd(), "public", "index.html"));
+});
+
+app.get("/tempobook/dynamic/:id", (req, res) => {
+  res.sendFile(path.join(process.cwd(), "public", "index.html"));
+});
+
 // helper: mean of object values
 const meanOfObj = (obj = {}) => {
   const vals = Object.values(obj || {});
@@ -47,7 +57,13 @@ const meanOfObj = (obj = {}) => {
 async function fetchClimate(lat, lon) {
   const base = "https://power.larc.nasa.gov/api/temporal/climatology/point";
   const params = new URLSearchParams({
-    parameters: ["T2M", "PRECTOTCORR", "ALLSKY_SFC_SW_DWN", "RH2M", "WS10M"].join(","),
+    parameters: [
+      "T2M",
+      "PRECTOTCORR",
+      "ALLSKY_SFC_SW_DWN",
+      "RH2M",
+      "WS10M",
+    ].join(","),
     community: "AG",
     latitude: String(lat),
     longitude: String(lon),
@@ -116,7 +132,14 @@ async function fetchSoil(lat, lon) {
     };
   } catch (err) {
     console.error("SoilGrids fetch failed:", err.message);
-    return { ph: null, soc: null, clay: null, silt: null, sand: null, source: url };
+    return {
+      ph: null,
+      soc: null,
+      clay: null,
+      silt: null,
+      sand: null,
+      source: url,
+    };
   }
 }
 
@@ -127,20 +150,22 @@ async function getCropDataFromGemini(cropName) {
     console.log(`CACHE HIT: Reusing data for "${cropName}".`);
     return cropDataCache.get(cropName);
   }
-  console.log(`CACHE MISS: Fetching new data for "${cropName}" from Gemini API.`);
+  console.log(
+    `CACHE MISS: Fetching new data for "${cropName}" from Gemini API.`,
+  );
 
   if (!process.env.GEMINI_API_KEY) {
-      console.error("Gemini API key is missing.");
-      return null;
+    console.error("Gemini API key is missing.");
+    return null;
   }
   try {
     const { GoogleGenerativeAI } = await import("@google/generative-ai");
     const client = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = client.getGenerativeModel({ 
+    const model = client.getGenerativeModel({
       model: "gemini-1.5-flash",
       generationConfig: {
         responseMimeType: "application/json",
-      }
+      },
     });
 
     const prompt = `Provide conservative agronomic thresholds for growing ${cropName} as strict JSON ONLY with keys:
@@ -153,18 +178,21 @@ The response must be only the JSON object, with no markdown formatting, comments
 
     const resp = await model.generateContent(prompt);
     const parsed = JSON.parse(resp.response.text());
-    
+
     if (!parsed.temperatureC || !parsed.soilPh || !parsed.soilTexture) {
-        throw new Error("Invalid JSON structure received from Gemini.");
+      throw new Error("Invalid JSON structure received from Gemini.");
     }
-    
+
     // ✨ FIX: Save the new data to the cache before returning
     cropDataCache.set(cropName, parsed);
     console.log(`CACHE SET: Saved new data for "${cropName}".`);
 
     return parsed;
   } catch (e) {
-    console.error(`Gemini helper error for crop "${cropName}":`, e?.message || e);
+    console.error(
+      `Gemini helper error for crop "${cropName}":`,
+      e?.message || e,
+    );
     return null;
   }
 }
@@ -178,10 +206,17 @@ app.post("/api/simulate", async (req, res) => {
 
     const reqs = await getCropDataFromGemini(crop);
     if (!reqs) {
-      return res.status(404).json({ error: `Could not find agronomic data for "${crop}". Please check the spelling or try another crop.` });
+      return res
+        .status(404)
+        .json({
+          error: `Could not find agronomic data for "${crop}". Please check the spelling or try another crop.`,
+        });
     }
 
-    const [climR, soilR] = await Promise.all([fetchClimate(lat, lon), fetchSoil(lat, lon)]);
+    const [climR, soilR] = await Promise.all([
+      fetchClimate(lat, lon),
+      fetchSoil(lat, lon),
+    ]);
 
     const ph = soilR?.ph ?? NaN;
     const clay = soilR?.clay ?? NaN;
@@ -205,21 +240,40 @@ app.post("/api/simulate", async (req, res) => {
 
     const texturePenalty = () => {
       let p = 0;
-      if (isFinite(clay) && clay > reqs.soilTexture.clayMax) p += SIMULATION_CONSTANTS.SOIL.texturePenalty;
-      if (isFinite(sand) && sand > reqs.soilTexture.sandMax) p += SIMULATION_CONSTANTS.SOIL.texturePenalty;
+      if (isFinite(clay) && clay > reqs.soilTexture.clayMax)
+        p += SIMULATION_CONSTANTS.SOIL.texturePenalty;
+      if (isFinite(sand) && sand > reqs.soilTexture.sandMax)
+        p += SIMULATION_CONSTANTS.SOIL.texturePenalty;
       return p;
     };
 
     const phFit = rangeFit(ph, reqs.soilPh);
-    const socBonus = isFinite(soc) ? Math.min(SIMULATION_CONSTANTS.SOIL.maxSocBonus, soc / SIMULATION_CONSTANTS.SOIL.socContributionFactor) : 0;
-    const soilQuality = Math.max(0, Math.min(1, phFit - texturePenalty() + socBonus));
+    const socBonus = isFinite(soc)
+      ? Math.min(
+          SIMULATION_CONSTANTS.SOIL.maxSocBonus,
+          soc / SIMULATION_CONSTANTS.SOIL.socContributionFactor,
+        )
+      : 0;
+    const soilQuality = Math.max(
+      0,
+      Math.min(1, phFit - texturePenalty() + socBonus),
+    );
 
     // timeline simulation
     const days = 120;
-    const stageMarkers = { germination: 7, vegetative: 45, flowering: 80, grainfill: 110 };
+    const stageMarkers = {
+      germination: 7,
+      vegetative: 45,
+      flowering: 80,
+      grainfill: 110,
+    };
 
     const w = SIMULATION_CONSTANTS.WEIGHTS;
-    const envScore = tFit * w.temperature + rFit * w.rainfall + sFit * w.solar + soilQuality * w.soil;
+    const envScore =
+      tFit * w.temperature +
+      rFit * w.rainfall +
+      sFit * w.solar +
+      soilQuality * w.soil;
     const stress = 1 - envScore;
 
     const timeline = [];
@@ -228,7 +282,10 @@ app.post("/api/simulate", async (req, res) => {
     for (let d = 1; d <= days; d++) {
       const g = SIMULATION_CONSTANTS.GROWTH;
       const growthRate = g.baseRate + g.envFactor * envScore;
-      const decay = stress > g.stressThreshold ? (stress - g.stressThreshold) * g.decayFactor : 0;
+      const decay =
+        stress > g.stressThreshold
+          ? (stress - g.stressThreshold) * g.decayFactor
+          : 0;
       biomass = Math.max(0, Math.min(1, biomass + growthRate - decay));
 
       const minRain = reqs.annualRainfallMm?.min ?? 400;
@@ -241,12 +298,17 @@ app.post("/api/simulate", async (req, res) => {
         d < stageMarkers.germination
           ? "pre-germination"
           : d < stageMarkers.vegetative
-          ? "germination"
-          : d < stageMarkers.flowering
-          ? "flowering"
-          : "maturity";
+            ? "germination"
+            : d < stageMarkers.flowering
+              ? "flowering"
+              : "maturity";
 
-      timeline.push({ day: d, biomass: Number(biomass.toFixed(3)), stage, alive });
+      timeline.push({
+        day: d,
+        biomass: Number(biomass.toFixed(3)),
+        stage,
+        alive,
+      });
     }
 
     const finalScore = Math.round(envScore * 100);
@@ -254,20 +316,22 @@ app.post("/api/simulate", async (req, res) => {
       !alive && timeline[days - 1].biomass < 0.2
         ? "fail"
         : finalScore < 60
-        ? "struggle"
-        : finalScore < 80
-        ? "good"
-        : "great";
+          ? "struggle"
+          : finalScore < 80
+            ? "good"
+            : "great";
 
     const limits = [];
     if (tFit < 0.4) limits.push("Temperature outside comfortable range");
     if (rFit < 0.4) limits.push("Insufficient or excessive rainfall");
     if (sFit < 0.4) limits.push("Suboptimal solar radiation");
     if (phFit < 0.5) limits.push("Soil pH unsuitable");
-    if (isFinite(clay) && clay > reqs.soilTexture.clayMax) limits.push("Soil too clayey (poor drainage)");
-    if (isFinite(sand) && sand > reqs.soilTexture.sandMax) limits.push("Soil too sandy (low water retention)");
+    if (isFinite(clay) && clay > reqs.soilTexture.clayMax)
+      limits.push("Soil too clayey (poor drainage)");
+    if (isFinite(sand) && sand > reqs.soilTexture.sandMax)
+      limits.push("Soil too sandy (low water retention)");
 
-        res.json({
+    res.json({
       score: finalScore,
       status,
       timeline,
@@ -285,7 +349,6 @@ app.post("/api/simulate", async (req, res) => {
         soilgrids: soilR.source,
       },
     });
-
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: e.message || "Simulation failed" });
@@ -293,4 +356,6 @@ app.post("/api/simulate", async (req, res) => {
 });
 
 // serve
-app.listen(PORT, () => console.log(`⚡ SDG15 Crop Sim running on http://localhost:${PORT}`));
+app.listen(PORT, () =>
+  console.log(`⚡ SDG15 Crop Sim running on http://localhost:${PORT}`),
+);
